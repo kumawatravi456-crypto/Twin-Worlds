@@ -1,0 +1,99 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Authenticated Twin Worlds researcher profile stored under their UID.",
+      "type": "object",
+      "properties": {
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Firebase Auth user ID matching document ID."
+        },
+        "firstName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "User first name."
+        },
+        "lastName": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 80,
+          "description": "User last name."
+        },
+        "email": {
+          "type": "string",
+          "format": "email",
+          "maxLength": 160,
+          "description": "Authenticated user email address."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        },
+        "updatedAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server last-updated timestamp."
+        }
+      },
+      "required": ["uid", "firstName", "lastName", "email", "createdAt", "updatedAt"]
+    },
+    "SavedExploration": {
+      "title": "SavedExploration",
+      "description": "Saved Moon/Mars target to Earth analog comparison bookmark for a researcher.",
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Deterministic exploration bookmark identifier."
+        },
+        "uid": {
+          "type": "string",
+          "maxLength": 128,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Owner Firebase Auth UID."
+        },
+        "targetId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Planetary target ID (Moon/Mars)."
+        },
+        "siteId": {
+          "type": "string",
+          "minLength": 2,
+          "maxLength": 64,
+          "pattern": "^[a-zA-Z0-9_\\-]+$",
+          "description": "Earth analog site ID."
+        },
+        "compositeScore": {
+          "type": "number",
+          "description": "Calculated weighted similarity percentage (0-100)."
+        },
+        "createdAt": {
+          "type": "string",
+          "format": "date-time",
+          "description": "Server creation timestamp."
+        }
+      },
+      "required": ["id", "uid", "targetId", "siteId", "compositeScore", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Owner-restricted researcher profile document containing name and email."
+    },
+    "/users/{userId}/explorations/{explorationId}": {
+      "schema": { "$ref": "#/entities/SavedExploration" },
+      "description": "Owner-restricted saved planetary target vs. Earth analog comparison bookmarks."
+    }
+  }
+}

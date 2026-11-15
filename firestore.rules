@@ -1,0 +1,118 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null && request.auth.uid != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['uid', 'firstName', 'lastName', 'email', 'createdAt', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'firstName', 'lastName', 'email', 'createdAt', 'updatedAt'])
+        && data.uid is string
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.firstName is string
+        && data.firstName.size() >= 1
+        && data.firstName.size() <= 80
+        && data.lastName is string
+        && data.lastName.size() >= 1
+        && data.lastName.size() <= 80
+        && data.email is string
+        && data.email.size() >= 3
+        && data.email.size() <= 160
+        && (request.auth.token.email == null || data.email == request.auth.token.email)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSavedExploration(data, userId, explorationId) {
+      return data.keys().hasAll(['id', 'uid', 'targetId', 'siteId', 'compositeScore', 'createdAt'])
+        && data.keys().hasOnly(['id', 'uid', 'targetId', 'siteId', 'compositeScore', 'createdAt'])
+        && data.id is string
+        && isValidId(data.id)
+        && data.id == explorationId
+        && data.uid is string
+        && isValidId(data.uid)
+        && data.uid == userId
+        && data.uid == request.auth.uid
+        && data.targetId is string
+        && data.targetId.size() >= 2
+        && data.targetId.size() <= 64
+        && data.targetId.matches('^[a-zA-Z0-9_\\-]+$')
+        && data.siteId is string
+        && data.siteId.size() >= 2
+        && data.siteId.size() <= 64
+        && data.siteId.matches('^[a-zA-Z0-9_\\-]+$')
+        && (data.compositeScore is int || data.compositeScore is float)
+        && data.compositeScore >= 0
+        && data.compositeScore <= 100
+        && data.createdAt is timestamp;
+    }
+
+    // Owner-isolated researcher profile (PII protected)
+    match /users/{userId} {
+      allow get: if isValidId(userId) && isOwner(userId);
+      allow list: if false;
+
+      allow create: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time;
+
+      allow update: if isValidId(userId)
+        && isOwner(userId)
+        && isValidUserProfile(incoming(), userId)
+        && incoming().diff(existing()).affectedKeys().hasOnly(['firstName', 'lastName', 'updatedAt'])
+        && incoming().uid == existing().uid
+        && incoming().email == existing().email
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time;
+
+      allow delete: if false;
+
+      // Saved Moon/Mars to Earth analog exploration bookmarks
+      match /explorations/{explorationId} {
+        allow get: if isValidId(userId) && isValidId(explorationId) && isOwner(userId);
+        allow list: if isValidId(userId) && isOwner(userId) && resource.data.uid == request.auth.uid;
+
+        allow create: if isValidId(userId)
+          && isValidId(explorationId)
+          && isOwner(userId)
+          && exists(/databases/$(database)/documents/users/$(userId))
+          && isValidSavedExploration(incoming(), userId, explorationId)
+          && incoming().createdAt == request.time;
+
+        allow update: if false;
+
+        allow delete: if isValidId(userId)
+          && isValidId(explorationId)
+          && isOwner(userId)
+          && existing().uid == request.auth.uid;
+      }
+    }
+  }
+}
